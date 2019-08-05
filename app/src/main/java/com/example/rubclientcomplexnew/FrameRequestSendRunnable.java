@@ -80,6 +80,8 @@ public class FrameRequestSendRunnable implements Runnable {
 
         Log.d("Taggg", "6");
 
+        mModuleTask.handleSendState(SOCKET_STATE_STARTED);
+
         mModuleTask.setSendThread(Thread.currentThread());
 
         /**Moves the current Thread into the background*/
@@ -112,9 +114,9 @@ public class FrameRequestSendRunnable implements Runnable {
                         throw new InterruptedException();
                     }
 
+                    /**Initializing the threads*/
                     for (int temp = 0; temp < RECEIVED_CHANNELS; temp++) {
                         socketbuffer[temp + 1] = new Socket(socketBufferData[0], Integer.parseInt(socketBufferData[temp + 2]));
-
                     }
 
                     /**Before continue check whether the thread has not been interrupted*/
@@ -122,6 +124,7 @@ public class FrameRequestSendRunnable implements Runnable {
                         throw new InterruptedException();
                     }
 
+                    /**Send request chunk data to the server*/
                     OutputStream os = socketbuffer[0].getOutputStream();
                     os.write(byteBufferSend, 0, byteBufferSend.length);
                     os.flush();
@@ -140,11 +143,13 @@ public class FrameRequestSendRunnable implements Runnable {
             }else{
                 Log.d("Debug","No chunk data Buffer received");
             }
-        } catch (IOException e) {
+            mModuleTask.setSocketBuffer(socketbuffer);
+            mModuleTask.handleSendState(SOCKET_STATE_COMPLETED);
+
+        } catch (IOException|InterruptedException e) {
             e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+            mModuleTask.handleSendState(SOCKET_STATE_FAILED);
         }
-        mModuleTask.setSocketBuffer(socketbuffer);
+
     }
 }

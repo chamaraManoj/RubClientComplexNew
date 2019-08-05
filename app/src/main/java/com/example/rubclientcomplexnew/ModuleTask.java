@@ -1,6 +1,7 @@
 package com.example.rubclientcomplexnew;
 
 import com.example.rubclientcomplexnew.FrameRequestSendRunnable.TaskRunnableSendMethods;
+import com.example.rubclientcomplexnew.DownloadDataRunnable.TaskRunnableDownloadMethods;
 
 import android.graphics.Bitmap;
 import android.util.Log;
@@ -9,7 +10,7 @@ import java.lang.ref.WeakReference;
 import java.net.Socket;
 import java.nio.Buffer;
 
-public class ModuleTask implements TaskRunnableSendMethods {
+public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadMethods {
 
     /**
      * This weakreference is created to reference the buffermanager object.
@@ -65,8 +66,11 @@ public class ModuleTask implements TaskRunnableSendMethods {
     ModuleTask() {
         // Create the runnables
         mRequestSendRunnable = new FrameRequestSendRunnable(this);
-        /**mDownloadRunnable = new PhotoDownloadRunnable(this);
-        mDecodeRunnable = new PhotoDecodeRunnable(this);*/
+        mDownloadRunnable[0] = new DownloadDataRunnable(this);
+        mDownloadRunnable[1] = new DownloadDataRunnable(this);
+        mDownloadRunnable[2] = new DownloadDataRunnable(this);
+        mDownloadRunnable[3] = new DownloadDataRunnable(this);
+        /*mDecodeRunnable = new PhotoDecodeRunnable(this);*/
         sModuleManager = ModuleManager.getInstance();
     }
 
@@ -137,6 +141,10 @@ public class ModuleTask implements TaskRunnableSendMethods {
         return mRequestSendRunnable;
     }
 
+    Runnable getDownloadDataRunnable(int threadNum){
+        return mDownloadRunnable[threadNum];
+    }
+
     /**
      * This function return the object of bufferManager reference by the weakReference m*/
     public BufferManager getBufferManager() {
@@ -158,17 +166,6 @@ public class ModuleTask implements TaskRunnableSendMethods {
     public void setSendThread(Thread currentThread) {
         setCurrentThread(currentThread);
     }
-
-    @Override
-    public byte[] getChunkByteBuffer() {
-        return chunkRelatedData;
-    }
-
-    /*
-    @Override
-    public Socket[] getSocketBuffer() {
-
-    }*/
 
     /**Thia funcition works of interrupting the threads*/
     @Override
@@ -194,7 +191,6 @@ public class ModuleTask implements TaskRunnableSendMethods {
             default:
                 outState = ModuleManager.REQUEST_SEND_FAILED;
                 break;
-
         }
         // Passes the state to the ThreadPool object.
         handleState(outState);
@@ -205,12 +201,32 @@ public class ModuleTask implements TaskRunnableSendMethods {
         return networkComponentData;
     }
 
+   @Override
+    public byte[] getChunkByteBuffer() {
+        return chunkRelatedData;
+    }
+
     /**End of Implementation of methods in the TaskRunnableSendMethods in
      * FrameRequestSendRunnable class==================================*/
 
 
+    /**Implementation of methods in the TaskRunnableDownloadMethods in
+     * DataDownloadRunnable class=============================*/
+    @Override
+    public byte[] getDataBuffer(int threadNum) {
+        return mImageBuffers[threadNum];
+    }
 
+    @Override
+    public Socket getSocket(int threadNum) {
+        return networkSockets[threadNum];
+    }
 
+    @Override
+    public void setByteBuffer(byte[] downloadedBuffer, int threadNum) {
+        mImageBuffers[threadNum] = downloadedBuffer;
+    }
 
-
+    /**End of Implementation of methods in the TaskRunnableDownloadMethods in
+     * DataDownloadRunnable class=============================*/
 }

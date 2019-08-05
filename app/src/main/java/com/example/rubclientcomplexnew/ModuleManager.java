@@ -15,10 +15,23 @@ import java.util.concurrent.TimeUnit;
 
 public class ModuleManager {
 
-    /*Status Indicators*/
-    static final int REQUEST_SEND_STARTED = 5;
-    static final int REQUEST_SEND_COMPLETED = 5;
-    static final int REQUEST_SEND_FAILED = 5;
+    /**Status Indicators*/
+    /*Indicators for Request send state*/
+    static final int REQUEST_SEND_STARTED = 0;
+    static final int REQUEST_SEND_COMPLETED = 1;
+    static final int REQUEST_SEND_FAILED = -1;
+
+    /*Indicators for Download state state*/
+    static final int DOWNLOAD_DATA_STARTED = 2;
+    static final int DOWNLOAD_DATA_COMPLETED = 3;
+    static final int DOWNLOAD_DATA_FAILED = -2;
+
+    /**Layers requesting*/
+    static final int BASE_LAYER= 0;
+    static final int ENHANCE_LAYER_1= 1;
+    static final int ENHANCE_LAYER_2 = 2;
+    static final int ENHANCE_LAYER_3 = 3;
+
 
     static final int DOWNLOAD_FAILED = -1;
     static final int DOWNLOAD_STARTED = 1;
@@ -116,7 +129,7 @@ public class ModuleManager {
                 MAXIMUM_POOL_SIZE,
                 KEEP_ALIVE_TIME,
                 KEEP_ALIVE_TIME_UNIT,
-                mSendWorkQueue);
+                mDownloadWorkQueue);
 
         /*Creating a new pool for thread Objects for the Decoding queue*/
         mDecodeThreadPool = new ThreadPoolExecutor(
@@ -152,7 +165,17 @@ public class ModuleManager {
 
     /**Call relevant threads based on the status received by the */
     public void handleState(ModuleTask moduleTask, int state) {
-
+        switch (state){
+            /**If the request send is successful, then receive the data from the server
+             * In this case 4 parallel threads should be run and those parallel data is
+             * sent to parallel decoders*/
+            case REQUEST_SEND_COMPLETED:
+                sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(BASE_LAYER));
+                sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(ENHANCE_LAYER_1));
+                sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(ENHANCE_LAYER_2));
+                sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(ENHANCE_LAYER_3));
+                break;
+        }
     }
 
     /**
