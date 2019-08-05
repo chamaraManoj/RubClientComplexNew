@@ -3,6 +3,7 @@ package com.example.rubclientcomplexnew;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 
@@ -15,7 +16,10 @@ import java.util.concurrent.TimeUnit;
 public class ModuleManager {
 
     /*Status Indicators*/
-    static final int REQUEST_SEND = 5;
+    static final int REQUEST_SEND_STARTED = 5;
+    static final int REQUEST_SEND_COMPLETED = 5;
+    static final int REQUEST_SEND_FAILED = 5;
+
     static final int DOWNLOAD_FAILED = -1;
     static final int DOWNLOAD_STARTED = 1;
     static final int DOWNLOAD_COMPLETE = 2;
@@ -146,7 +150,7 @@ public class ModuleManager {
         return sInstance;
     }
 
-
+    /**Call relevant threads based on the status received by the */
     public void handleState(ModuleTask moduleTask, int state) {
 
     }
@@ -161,7 +165,7 @@ public class ModuleManager {
     static public ModuleTask sendRequest(
             BufferManager bufferManager,
             boolean cacheFlag) {
-
+        Log.d("Taggg", "3");
         /*
          * Gets a task from the pool of tasks, returning null if the pool is empty
          */

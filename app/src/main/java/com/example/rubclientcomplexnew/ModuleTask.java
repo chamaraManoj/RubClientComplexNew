@@ -3,6 +3,7 @@ package com.example.rubclientcomplexnew;
 import com.example.rubclientcomplexnew.FrameRequestSendRunnable.TaskRunnableSendMethods;
 
 import android.graphics.Bitmap;
+import android.util.Log;
 
 import java.lang.ref.WeakReference;
 import java.net.Socket;
@@ -77,6 +78,7 @@ public class ModuleTask implements TaskRunnableSendMethods {
      * @param bufferManager A object for bufferManagement*/
 
     void initializeDownloadTask(ModuleManager moduleManager, BufferManager bufferManager){
+        Log.d("Taggg", "4");
         sModuleManager = moduleManager;
 
         /**Read the network related parameters to a string buffer*/
@@ -131,6 +133,7 @@ public class ModuleTask implements TaskRunnableSendMethods {
     /**
      * Returns the instance that send the request to the server*/
     Runnable getSendRequestRunnable() {
+        Log.d("Taggg", "5");
         return mRequestSendRunnable;
     }
 
@@ -143,9 +146,14 @@ public class ModuleTask implements TaskRunnableSendMethods {
         return null;
     }
 
+    /**Function to send the thread state data every time to the module manager*/
+    void handleState(int state) {
+        sModuleManager.handleState(this, state);
+    }
+
 
     /**Implementation of methods in the TaskRunnableSendMethods in
-     * FrameRequestSendRunnable class*/
+     * FrameRequestSendRunnable class=============================*/
     @Override
     public void setSendThread(Thread currentThread) {
         setCurrentThread(currentThread);
@@ -165,18 +173,44 @@ public class ModuleTask implements TaskRunnableSendMethods {
     /**Thia funcition works of interrupting the threads*/
     @Override
     public void setSocketBuffer(Socket[] buffer) {
+        Log.d("Taggg", "11" );
         networkSockets = buffer;
     }
 
 
-
+    /***/
     @Override
     public void handleSendState(int state) {
-        sModuleManager.handleState(this, state);
+
+        int outState;
+
+        switch(state) {
+            case FrameRequestSendRunnable.SOCKET_STATE_STARTED:
+                outState = ModuleManager.REQUEST_SEND_STARTED;
+                break;
+            case FrameRequestSendRunnable.SOCKET_STATE_COMPLETED:
+                outState = ModuleManager.REQUEST_SEND_COMPLETED;
+                break;
+            default:
+                outState = ModuleManager.REQUEST_SEND_FAILED;
+                break;
+
+        }
+        // Passes the state to the ThreadPool object.
+        handleState(outState);
     }
 
     @Override
     public String[] getNetworkComponentDetails() {
         return networkComponentData;
     }
+
+    /**End of Implementation of methods in the TaskRunnableSendMethods in
+     * FrameRequestSendRunnable class==================================*/
+
+
+
+
+
+
 }

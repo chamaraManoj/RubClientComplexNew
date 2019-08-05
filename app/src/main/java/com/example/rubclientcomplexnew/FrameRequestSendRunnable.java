@@ -11,11 +11,12 @@ public class FrameRequestSendRunnable implements Runnable {
     /*Define the sending buffer length*/
     private static final int SEND_SIZE = 9;
     private static final int RECEIVED_CHANNELS = 4;
-    private static final int TOT_SCOKETS = 4;
+    private static final int TOT_SCOKETS = 5;
 
     /*Status indicating the SocketCommunication status*/
     static final int SOCKET_STATE_STARTED = 0;
     static final int SOCKET_STATE_COMPLETED = 1;
+    static final int SOCKET_STATE_FAILED = -1;
 
     final TaskRunnableSendMethods mModuleTask;
 
@@ -76,6 +77,9 @@ public class FrameRequestSendRunnable implements Runnable {
 
         /**Store the thread in the mModuleTask object, so that it can interrupt this thread at
          * any time*/
+
+        Log.d("Taggg", "6");
+
         mModuleTask.setSendThread(Thread.currentThread());
 
         /**Moves the current Thread into the background*/
@@ -83,29 +87,53 @@ public class FrameRequestSendRunnable implements Runnable {
 
         byte[] byteBufferSend = mModuleTask.getChunkByteBuffer();
 
+        for(int i =0;i<9;i++){
+            Log.d("Taggg", String.valueOf(byteBufferSend[i]));
+        }
+
         String[] socketBufferData = mModuleTask.getNetworkComponentDetails();
 
         Socket[] socketbuffer = new Socket[TOT_SCOKETS];
-
+        Log.d("Taggg", "7");
         try {
 
+            /**Before continue check whether the thread has not been interrupted*/
             if (Thread.interrupted()) {
                 throw new InterruptedException();
             }
 
             if(byteBufferSend!=null) {
-
                 if(socketBufferData!=null) {
+
                     socketbuffer[0] = new Socket(socketBufferData[0], Integer.parseInt(socketBufferData[1]));
+
+                    /**Before continue check whether the thread has not been interrupted*/
+                    if (Thread.interrupted()) {
+                        throw new InterruptedException();
+                    }
 
                     for (int temp = 0; temp < RECEIVED_CHANNELS; temp++) {
                         socketbuffer[temp + 1] = new Socket(socketBufferData[0], Integer.parseInt(socketBufferData[temp + 2]));
+
+                    }
+
+                    /**Before continue check whether the thread has not been interrupted*/
+                    if (Thread.interrupted()) {
+                        throw new InterruptedException();
                     }
 
                     OutputStream os = socketbuffer[0].getOutputStream();
                     os.write(byteBufferSend, 0, byteBufferSend.length);
                     os.flush();
                     socketbuffer[0].close();
+
+                    /**Before continue check whether the thread has not been interrupted*/
+                    if (Thread.interrupted()) {
+                        throw new InterruptedException();
+                    }
+
+                    Log.d("Taggg", "10" );
+
                 }else{
                     Log.d("Debug", "No Socket data received");
                 }
@@ -119,5 +147,4 @@ public class FrameRequestSendRunnable implements Runnable {
         }
         mModuleTask.setSocketBuffer(socketbuffer);
     }
-
 }
