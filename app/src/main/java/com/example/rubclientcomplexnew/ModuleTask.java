@@ -2,6 +2,7 @@ package com.example.rubclientcomplexnew;
 
 import com.example.rubclientcomplexnew.FrameRequestSendRunnable.TaskRunnableSendMethods;
 import com.example.rubclientcomplexnew.DownloadDataRunnable.TaskRunnableDownloadMethods;
+import com.example.rubclientcomplexnew.ModuleManager.*;
 
 import android.graphics.Bitmap;
 import android.util.Log;
@@ -47,7 +48,11 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
     */
     byte[][] mImageBuffers;
 
+    /**buffer containing all the socket details*/
     Socket[] socketBuffer;
+
+    /**Array of array to store tile layer lengths in different layer*/
+    int[][] tilelengths;
 
     /**Images to decode the threads*/
     private Bitmap mDecodedImage;
@@ -65,13 +70,17 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
      */
     ModuleTask() {
         // Create the runnables
+        //Log.d("Taggg", "3_1_1");
+        mDownloadRunnable = new DownloadDataRunnable[4];
+
         mRequestSendRunnable = new FrameRequestSendRunnable(this);
-        mDownloadRunnable[0] = new DownloadDataRunnable(this);
-        mDownloadRunnable[1] = new DownloadDataRunnable(this);
-        mDownloadRunnable[2] = new DownloadDataRunnable(this);
-        mDownloadRunnable[3] = new DownloadDataRunnable(this);
+        mDownloadRunnable[0] = new DownloadDataRunnable(this,ModuleManager.BASE_LAYER );
+        mDownloadRunnable[1] = new DownloadDataRunnable(this,ModuleManager.ENHANCE_LAYER_1);
+        mDownloadRunnable[2] = new DownloadDataRunnable(this,ModuleManager.ENHANCE_LAYER_2);
+        mDownloadRunnable[3] = new DownloadDataRunnable(this,ModuleManager.ENHANCE_LAYER_3);
         /*mDecodeRunnable = new PhotoDecodeRunnable(this);*/
         sModuleManager = ModuleManager.getInstance();
+        //Log.d("Taggg", "3_1_2");
     }
 
     /**
@@ -225,6 +234,17 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
     @Override
     public void setByteBuffer(byte[] downloadedBuffer, int threadNum) {
         mImageBuffers[threadNum] = downloadedBuffer;
+    }
+
+
+    public int[] getTileLengthBuffer(int threadNum){
+        return tilelengths[threadNum];
+    }
+
+    /**
+     * Set the buffer containing the tile's lengths */
+    public void setTileLengthsBuffer(int[] tileLengthsBuffer,int threaNum){
+        tilelengths[threaNum] = tileLengthsBuffer;
     }
 
     /**End of Implementation of methods in the TaskRunnableDownloadMethods in

@@ -16,8 +16,8 @@ public class BufferManager {
     /**
      * Declare the network related parameters
      */
-    private String serverIp = "10.1.1.35";
-    //private String serverIp = "10.130.1.229";
+    //private String serverIp = "10.1.1.35";
+    private String serverIp = "10.130.1.229";
     private String socketSend  = "5550";
     private String socketRecv1 = "5551";
     private String socketRecv2 = "5552";

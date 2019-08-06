@@ -165,15 +165,23 @@ public class ModuleManager {
 
     /**Call relevant threads based on the status received by the */
     public void handleState(ModuleTask moduleTask, int state) {
+        Log.d("Taggg", "12");
+
         switch (state){
             /**If the request send is successful, then receive the data from the server
              * In this case 4 parallel threads should be run and those parallel data is
              * sent to parallel decoders*/
+
             case REQUEST_SEND_COMPLETED:
+                Log.d("Taggg", "13");
                 sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(BASE_LAYER));
+                Log.d("Taggg", "14");
                 sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(ENHANCE_LAYER_1));
+                Log.d("Taggg", "15");
                 sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(ENHANCE_LAYER_2));
+                Log.d("Taggg", "16");
                 sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(ENHANCE_LAYER_3));
+                Log.d("Taggg", "17");
                 break;
         }
     }
@@ -194,10 +202,12 @@ public class ModuleManager {
          */
         ModuleTask sendRequestTask = sInstance.mPhotoTaskWorkQueue.poll();
 
+        Log.d("Taggg", "3_1");
         // If the queue was empty, create a new task instead.
         if (null == sendRequestTask) {
             sendRequestTask = new ModuleTask();
         }
+        Log.d("Taggg", "3_2");
 
         // Initializes the task
         sendRequestTask.initializeDownloadTask(ModuleManager.sInstance, bufferManager);

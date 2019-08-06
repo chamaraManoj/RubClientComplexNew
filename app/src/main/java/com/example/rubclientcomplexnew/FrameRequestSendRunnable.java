@@ -105,19 +105,25 @@ public class FrameRequestSendRunnable implements Runnable {
             }
 
             if(byteBufferSend!=null) {
+
                 if(socketBufferData!=null) {
 
+
                     socketbuffer[0] = new Socket(socketBufferData[0], Integer.parseInt(socketBufferData[1]));
+
+
 
                     /**Before continue check whether the thread has not been interrupted*/
                     if (Thread.interrupted()) {
                         throw new InterruptedException();
                     }
 
+
                     /**Initializing the threads*/
                     for (int temp = 0; temp < RECEIVED_CHANNELS; temp++) {
                         socketbuffer[temp + 1] = new Socket(socketBufferData[0], Integer.parseInt(socketBufferData[temp + 2]));
                     }
+
 
                     /**Before continue check whether the thread has not been interrupted*/
                     if (Thread.interrupted()) {
@@ -150,6 +156,5 @@ public class FrameRequestSendRunnable implements Runnable {
             e.printStackTrace();
             mModuleTask.handleSendState(SOCKET_STATE_FAILED);
         }
-
     }
 }
