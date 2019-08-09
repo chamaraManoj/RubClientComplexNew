@@ -130,7 +130,7 @@ public class DownloadDataRunnable implements Runnable {
                 if (this.threadNum == ModuleManager.BASE_LAYER) {
                     totBufferLength = BYTE_BUFFER_LENGTH_BASE;
                     totTiles = NUM_OF_TILES_BASE;
-                } 
+                }
                 /**If the thread is working with one of the enhancement layers*/
                 else {
                     totBufferLength = BYTE_BUFFER_LENGTH_ENHA;
