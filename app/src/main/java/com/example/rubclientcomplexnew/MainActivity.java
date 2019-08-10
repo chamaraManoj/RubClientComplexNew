@@ -19,7 +19,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void send(View view) {
-        Log.d("Taggg", "1");
+        //Log.d("Taggg", "1");
         bufferManager.startSendRequest();
+
     }
 }

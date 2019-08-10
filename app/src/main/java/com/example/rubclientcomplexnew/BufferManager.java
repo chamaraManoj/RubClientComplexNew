@@ -3,21 +3,24 @@ package com.example.rubclientcomplexnew;
 import android.util.Log;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.TimeUnit;
 
 public class BufferManager {
 
-    private int NETWORK_RELATED_PARA    = 6;
-    private int CHUNK_RELATED_DATA      = 9;
-    
-    /**Temporarly variables to store the quality level*/
-    private byte QUALITY_SD              = 0;
-    private byte QUALITY_HD              = 1;
-    private byte QUALITY_4K              = 2;
+    private int NETWORK_RELATED_PARA = 6;
+    private int CHUNK_RELATED_DATA = 9;
+
+    /**
+     * Temporarly variables to store the quality level
+     */
+    private byte QUALITY_SD = 0;
+    private byte QUALITY_HD = 1;
+    private byte QUALITY_4K = 2;
     /**
      * Declare the network related parameters
      */
-    //private String serverIp = "10.1.1.35";
-    private String serverIp = "10.130.1.229";
+    private String serverIp = "10.1.1.35";
+    //private String serverIp = "10.130.1.229";
     private String socketSend  = "5550";
     private String socketRecv1 = "5551";
     private String socketRecv2 = "5552";
@@ -53,14 +56,14 @@ public class BufferManager {
 
         int chunk;
         chunkDataBuffer = new byte[CHUNK_RELATED_DATA];
-        
+
         /**This is s temporarly created for loop to test the implementing methods*/
 
-        for (chunk = 0; chunk < 1; chunk++) {
+        for (chunk = 10; chunk < 11; chunk++) {
             byte tile1 = 19;
-            byte tile2 = (byte)(chunk%15);
+            byte tile2 = (byte) (chunk % 15);
             byte tile3 = 11;
-            byte tile4 = (byte)(chunk%15);
+            byte tile4 = (byte) (chunk % 15);
             byte quality = QUALITY_SD;
 
             byte[] tempChunkBytes = ByteBuffer.allocate(4).putInt(chunk).array();
@@ -75,15 +78,17 @@ public class BufferManager {
             chunkDataBuffer[6] = tile3;
             chunkDataBuffer[7] = tile4;
             chunkDataBuffer[8] = quality;
-            
+
         }
         return chunkDataBuffer;
     }
 
-    public void startSendRequest(){
-        Log.d("Taggg", "2");
-        mModuleTask = ModuleManager.sendRequest(this,true);
+    public void startSendRequest() {
+        int downLoadCompleteCount =0;
+        int previouseDownloadCount =0;
+        //Log.d("Taggg", "2");
+        for (int i = 1; i < 11; i++) {
+            mModuleTask = ModuleManager.sendRequest(this, true, downLoadCompleteCount);
+        }
     }
-
-
 }

@@ -10,6 +10,7 @@ import android.util.Log;
 import java.lang.ref.WeakReference;
 import java.net.Socket;
 import java.nio.Buffer;
+import java.util.concurrent.CountDownLatch;
 
 public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadMethods {
 
@@ -46,13 +47,13 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
 
     /**A buffer for containing the bytes that make up the image
     */
-    byte[][] mImageBuffers;
+    byte[][] mImageBuffers  = new byte[4][];
 
     /**buffer containing all the socket details*/
     Socket[] socketBuffer;
 
     /**Array of array to store tile layer lengths in different layer*/
-    int[][] tilelengths;
+    int[][] tilelengths = new int[4][];
 
     /**Images to decode the threads*/
     private Bitmap mDecodedImage;
@@ -73,11 +74,11 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
         //Log.d("Taggg", "3_1_1");
         mDownloadRunnable = new DownloadDataRunnable[4];
 
-        mRequestSendRunnable = new FrameRequestSendRunnable(this);
-        mDownloadRunnable[0] = new DownloadDataRunnable(this,ModuleManager.BASE_LAYER );
-        mDownloadRunnable[1] = new DownloadDataRunnable(this,ModuleManager.ENHANCE_LAYER_1);
-        mDownloadRunnable[2] = new DownloadDataRunnable(this,ModuleManager.ENHANCE_LAYER_2);
-        mDownloadRunnable[3] = new DownloadDataRunnable(this,ModuleManager.ENHANCE_LAYER_3);
+        mRequestSendRunnable = new FrameRequestSendRunnable(this,ModuleManager.getStartCountDown(),ModuleManager.getSendStopCountDown());
+        mDownloadRunnable[0] = new DownloadDataRunnable(this,ModuleManager.BASE_LAYER,ModuleManager.getStartCountDown(),ModuleManager.getDownloadStopCountDown());
+        mDownloadRunnable[1] = new DownloadDataRunnable(this,ModuleManager.ENHANCE_LAYER_1,ModuleManager.getStartCountDown(),ModuleManager.getDownloadStopCountDown() );
+        mDownloadRunnable[2] = new DownloadDataRunnable(this,ModuleManager.ENHANCE_LAYER_2,ModuleManager.getStartCountDown(),ModuleManager.getDownloadStopCountDown() );
+        mDownloadRunnable[3] = new DownloadDataRunnable(this,ModuleManager.ENHANCE_LAYER_3,ModuleManager.getStartCountDown(),ModuleManager.getDownloadStopCountDown() );
         /*mDecodeRunnable = new PhotoDecodeRunnable(this);*/
         sModuleManager = ModuleManager.getInstance();
         //Log.d("Taggg", "3_1_2");
@@ -95,6 +96,7 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
         sModuleManager = moduleManager;
 
         /**Read the network related parameters to a string buffer*/
+
         networkComponentData = bufferManager.getNetworkComponentData();
 
         /**Read chunk related data to a byte[] buffer*/
@@ -146,7 +148,7 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
     /**
      * Returns the instance that send the request to the server*/
     Runnable getSendRequestRunnable() {
-        Log.d("Taggg", "5");
+        //Log.d("Taggg", "5");
         return mRequestSendRunnable;
     }
 
@@ -179,8 +181,11 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
     /**Thia funcition works of interrupting the threads*/
     @Override
     public void setSocketBuffer(Socket[] buffer) {
-        Log.d("Taggg", "11" );
+        //Log.d("Taggg", "11" );
         networkSockets = buffer;
+        /*for(int i =0;i<networkSockets.length;i++){
+            Log.d("Taggg", networkSockets[i].toString()+"                      11" );
+        }*/
     }
 
 
@@ -197,8 +202,9 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
             case FrameRequestSendRunnable.SOCKET_STATE_COMPLETED:
                 outState = ModuleManager.REQUEST_SEND_COMPLETED;
                 break;
+
             default:
-                outState = ModuleManager.REQUEST_SEND_FAILED;
+                outState = ModuleManager.REQUEST_SEND_FAILED ;
                 break;
         }
         // Passes the state to the ThreadPool object.
@@ -228,7 +234,7 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
 
     @Override
     public Socket getSocket(int threadNum) {
-        return networkSockets[threadNum];
+        return networkSockets[threadNum+1];
     }
 
     @Override
@@ -245,6 +251,29 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
      * Set the buffer containing the tile's lengths */
     public void setTileLengthsBuffer(int[] tileLengthsBuffer,int threaNum){
         tilelengths[threaNum] = tileLengthsBuffer;
+    }
+
+    /***/
+    @Override
+    public void handleSendState(int state,int threadNum) {
+
+        int outState;
+
+        switch(state) {
+            case DownloadDataRunnable.DOWNLOAD_STATE_STARTED:
+                outState = ModuleManager.DOWNLOAD_DATA_STARTED;
+                break;
+            case DownloadDataRunnable.DOWNLOAD_STATE_COMPLETED:
+                outState = ModuleManager.DOWNLOAD_DATA_COMPLETED;
+                Log.d("Tagg", "Download Completed");
+                break;
+            default:
+                outState = ModuleManager.REQUEST_SEND_FAILED ;
+                Log.d("Tagg", "Download Failed" + " " + String.valueOf(threadNum));
+                break;
+        }
+        // Passes the state to the ThreadPool object.
+        handleState(outState);
     }
 
     /**End of Implementation of methods in the TaskRunnableDownloadMethods in

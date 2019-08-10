@@ -5,6 +5,7 @@ import android.util.Log;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.util.concurrent.CountDownLatch;
 
 public class FrameRequestSendRunnable implements Runnable {
 
@@ -19,6 +20,8 @@ public class FrameRequestSendRunnable implements Runnable {
     static final int SOCKET_STATE_FAILED = -1;
 
     final TaskRunnableSendMethods mModuleTask;
+    final CountDownLatch startSignal;
+    final CountDownLatch donesignal;
 
     /*Interface to create methods needed to share variabled between the ModuleTask and the */
     interface TaskRunnableSendMethods {
@@ -66,8 +69,10 @@ public class FrameRequestSendRunnable implements Runnable {
     /**
      * Adding the ModuleTask object which implements the method descirbed in uppermethod
      */
-    FrameRequestSendRunnable(TaskRunnableSendMethods moduleTask) {
+    FrameRequestSendRunnable(TaskRunnableSendMethods moduleTask, CountDownLatch startSignal, CountDownLatch donesignal) {
         this.mModuleTask = moduleTask;
+        this.startSignal = startSignal;
+        this.donesignal = donesignal;
     }
 
     @SuppressWarnings("resource")
@@ -79,6 +84,11 @@ public class FrameRequestSendRunnable implements Runnable {
          * any time*/
 
         Log.d("Taggg", "6");
+        try {
+            startSignal.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
         mModuleTask.handleSendState(SOCKET_STATE_STARTED);
 
@@ -89,14 +99,12 @@ public class FrameRequestSendRunnable implements Runnable {
 
         byte[] byteBufferSend = mModuleTask.getChunkByteBuffer();
 
-        for(int i =0;i<9;i++){
-            Log.d("Taggg", String.valueOf(byteBufferSend[i]));
-        }
+
 
         String[] socketBufferData = mModuleTask.getNetworkComponentDetails();
 
         Socket[] socketbuffer = new Socket[TOT_SCOKETS];
-        Log.d("Taggg", "7");
+        Log.d("Taggg", " 7");
         try {
 
             /**Before continue check whether the thread has not been interrupted*/
@@ -156,5 +164,6 @@ public class FrameRequestSendRunnable implements Runnable {
             e.printStackTrace();
             mModuleTask.handleSendState(SOCKET_STATE_FAILED);
         }
+        donesignal.countDown();
     }
 }

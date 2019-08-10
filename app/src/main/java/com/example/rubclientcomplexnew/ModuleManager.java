@@ -9,6 +9,7 @@ import androidx.annotation.NonNull;
 
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -24,7 +25,7 @@ public class ModuleManager {
     /*Indicators for Download state state*/
     static final int DOWNLOAD_DATA_STARTED = 2;
     static final int DOWNLOAD_DATA_COMPLETED = 3;
-    static final int DOWNLOAD_DATA_FAILED = -2;
+    static final int DOWNLOAD_DATA_FAILED = -1;
 
     /**Layers requesting*/
     static final int BASE_LAYER= 0;
@@ -32,15 +33,22 @@ public class ModuleManager {
     static final int ENHANCE_LAYER_2 = 2;
     static final int ENHANCE_LAYER_3 = 3;
 
+    /**Enable parallel threading for communication*/
+    static final boolean ENA_PARALLEL_STREAM = false;
 
-    static final int DOWNLOAD_FAILED = -1;
-    static final int DOWNLOAD_STARTED = 1;
-    static final int DOWNLOAD_COMPLETE = 2;
     static final int DECODE_STARTED = 3;
     static final int TASK_COMPLETE = 4;
 
+    static final int NUM_OF_THREADS = 4;
+    static final int NUM_OF_SEND_THREADS = 1;
+
     //Sets the idle time that a thread will wait for a task before terminating
-    private static final int KEEP_ALIVE_TIME = 1;
+    private static final int KEEP_ALIVE_TIME_FOR_SEND_REQUEST = 100;
+
+    private static final int KEEP_ALIVE_TIME_FOR_RECE_REQUEST = 100;
+
+    private static final int KEEP_ALIVE_TIME_FOR_DECODE = 100;
+
 
     //Sets the time unit variable
     private static final TimeUnit KEEP_ALIVE_TIME_UNIT;
@@ -81,14 +89,21 @@ public class ModuleManager {
     // A single instance of PhotoManager, used to implement the singleton pattern
     private static ModuleManager sInstance = null;
 
+    private static  CountDownLatch startSignal;
+    private static  CountDownLatch doneSendRequestSignal;
+    private static  CountDownLatch doneDownloadSignal;
+
     // A static block that sets class fields
     static {
 
         // The time unit for "keep alive" is in seconds
-        KEEP_ALIVE_TIME_UNIT = TimeUnit.SECONDS;
+        KEEP_ALIVE_TIME_UNIT = TimeUnit.MILLISECONDS;
 
         // Creates a single static instance of PhotoManager
         sInstance = new ModuleManager();
+        startSignal= new CountDownLatch(1);
+        doneDownloadSignal = new CountDownLatch(NUM_OF_THREADS);
+        doneSendRequestSignal = new CountDownLatch(NUM_OF_SEND_THREADS);
     }
 
     //Constructing the workqueues and thread pools for the execution
@@ -118,7 +133,7 @@ public class ModuleManager {
         mSendThreadPool = new ThreadPoolExecutor(
                 CORE_POOL_SIZE,
                 MAXIMUM_POOL_SIZE,
-                KEEP_ALIVE_TIME,
+                KEEP_ALIVE_TIME_FOR_SEND_REQUEST,
                 KEEP_ALIVE_TIME_UNIT,
                 mSendWorkQueue);
 
@@ -127,7 +142,7 @@ public class ModuleManager {
         mDownloadThreadPool = new ThreadPoolExecutor(
                 CORE_POOL_SIZE,
                 MAXIMUM_POOL_SIZE,
-                KEEP_ALIVE_TIME,
+                KEEP_ALIVE_TIME_FOR_RECE_REQUEST,
                 KEEP_ALIVE_TIME_UNIT,
                 mDownloadWorkQueue);
 
@@ -135,7 +150,7 @@ public class ModuleManager {
         mDecodeThreadPool = new ThreadPoolExecutor(
                 CORE_POOL_SIZE,
                 MAXIMUM_POOL_SIZE,
-                KEEP_ALIVE_TIME,
+                KEEP_ALIVE_TIME_FOR_DECODE,
                 KEEP_ALIVE_TIME_UNIT,
                 mSendWorkQueue);
 
@@ -151,10 +166,16 @@ public class ModuleManager {
                 BufferManager bufferManager = moduleTask.getBufferManager();
 
                 if(bufferManager!=null){
+                    switch (msg.what){
+                        case REQUEST_SEND_COMPLETED:
+                            break;
+                        case DOWNLOAD_DATA_COMPLETED:
+                            break;
 
+                    }
                 }
-          }
-      };
+            }
+        };
 
     }
 
@@ -163,9 +184,23 @@ public class ModuleManager {
         return sInstance;
     }
 
+    public static CountDownLatch getStartCountDown() {
+        return startSignal;
+    }
+
+    public static CountDownLatch getDownloadStopCountDown() {
+        return doneDownloadSignal;
+    }
+
+    public static CountDownLatch getSendStopCountDown() {
+        return doneSendRequestSignal;
+    }
+
+
+
     /**Call relevant threads based on the status received by the */
     public void handleState(ModuleTask moduleTask, int state) {
-        Log.d("Taggg", "12");
+        //Log.d("Taggg", "12");
 
         switch (state){
             /**If the request send is successful, then receive the data from the server
@@ -173,16 +208,38 @@ public class ModuleManager {
              * sent to parallel decoders*/
 
             case REQUEST_SEND_COMPLETED:
-                Log.d("Taggg", "13");
-                sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(BASE_LAYER));
-                Log.d("Taggg", "14");
-                sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(ENHANCE_LAYER_1));
-                Log.d("Taggg", "15");
-                sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(ENHANCE_LAYER_2));
-                Log.d("Taggg", "16");
-                sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(ENHANCE_LAYER_3));
-                Log.d("Taggg", "17");
+
+                if(ENA_PARALLEL_STREAM) {
+
+                    //Log.d("Taggg", startSignal.toString()+"  13");
+                    //Log.d("Taggg", "13");
+                    sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(BASE_LAYER));
+                    //Log.d("Taggg", "14");
+                    sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(ENHANCE_LAYER_1));
+                    //Log.d("Taggg", "15");
+                    sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(ENHANCE_LAYER_2));
+                    //Log.d("Taggg", "16");
+                    sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(ENHANCE_LAYER_3));
+                    //Log.d("Taggg", "17");
+                    //Log.d("Debug","Start Counting");
+                    startSignal.countDown();
+                    //Log.d("Debug","Start Awaiting");
+                    try {
+                        doneDownloadSignal.await();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }else if(!ENA_PARALLEL_STREAM){
+                    sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(BASE_LAYER));
+                }
+                //Log.d("Debug","Done Awaiting");
                 break;
+            case DOWNLOAD_DATA_COMPLETED:
+                Message completeMessage = mHandler.obtainMessage(state, moduleTask);
+                completeMessage.sendToTarget();
+                break;
+
+
         }
     }
 
@@ -195,7 +252,8 @@ public class ModuleManager {
      */
     static public ModuleTask sendRequest(
             BufferManager bufferManager,
-            boolean cacheFlag) {
+            boolean cacheFlag,
+            int downloadCompletCount) {
         Log.d("Taggg", "3");
         /*
          * Gets a task from the pool of tasks, returning null if the pool is empty
@@ -207,12 +265,21 @@ public class ModuleManager {
         if (null == sendRequestTask) {
             sendRequestTask = new ModuleTask();
         }
-        Log.d("Taggg", "3_2");
+        Log.d("Taggg", "  3_2");
 
         // Initializes the task
         sendRequestTask.initializeDownloadTask(ModuleManager.sInstance, bufferManager);
 
-        sInstance.mSendThreadPool.execute(sendRequestTask.getSendRequestRunnable());
+
+        sInstance.mDownloadThreadPool.execute(sendRequestTask.getSendRequestRunnable());
+
+        startSignal.countDown();
+
+        try {
+            doneSendRequestSignal.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
         /*
          * Provides the download task with the cache buffer corresponding to the URL to be
