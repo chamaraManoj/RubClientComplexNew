@@ -2,6 +2,7 @@ package com.example.rubclientcomplexnew;
 
 import com.example.rubclientcomplexnew.FrameRequestSendRunnable.TaskRunnableSendMethods;
 import com.example.rubclientcomplexnew.DownloadDataRunnable.TaskRunnableDownloadMethods;
+import com.example.rubclientcomplexnew.DecodedDataRunnable.TaskRunnableDecoderMethods;
 import com.example.rubclientcomplexnew.ModuleManager.*;
 
 import android.graphics.Bitmap;
@@ -12,24 +13,28 @@ import java.net.Socket;
 import java.nio.Buffer;
 import java.util.concurrent.CountDownLatch;
 
-public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadMethods {
+public class ModuleTask implements TaskRunnableSendMethods, TaskRunnableDownloadMethods, TaskRunnableDecoderMethods {
 
     /**
      * This weakreference is created to reference the buffermanager object.
      * If the Given BufferManager object is destroyed or unreferenced, this weak
-     * reference will also be garbage collected avoding any memory leak or crashes*/
+     * reference will also be garbage collected avoding any memory leak or crashes
+     */
     private WeakReference<BufferManager> mBufferManWeakRef;
 
     /**
-     * Reference to handle the Socket objects*/
+     * Reference to handle the Socket objects
+     */
     private Socket[] networkSockets;
 
     /**
-     * Refence to handle Network related data*/
+     * Refence to handle Network related data
+     */
     private String[] networkComponentData;
 
     /**
-     * Reference to the chunkRelatad data*/
+     * Reference to the chunkRelatad data
+     */
     private byte[] chunkRelatedData;
 
     /**
@@ -38,27 +43,42 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
     Thread mThreadThis;
 
     /**
+     * set the chunk Number*/
+    private int chunkNum;
+
+    /**
      * Fields containing references to the two runnable objects that handle sending,downloading and
      * decoding of the image.
      */
     private Runnable[] mDownloadRunnable;
-    private Runnable[] mDecodeRunnable;
+    private Runnable[][] mDecodeRunnable;
     private Runnable mRequestSendRunnable;
 
-    /**A buffer for containing the bytes that make up the image
-    */
-    byte[][] mImageBuffers  = new byte[4][];
 
-    /**buffer containing all the socket details*/
+
+    /**
+     * A buffer for containing the bytes that make up the image
+     */
+    byte[][] mImageBuffers = new byte[4][];
+
+    /**
+     * buffer containing all the socket details
+     */
     Socket[] socketBuffer;
 
-    /**Array of array to store tile layer lengths in different layer*/
+    /**
+     * Array of array to store tile layer lengths in different layer
+     */
     int[][] tilelengths = new int[4][];
 
-    /**Images to decode the threads*/
+    /**
+     * Images to decode the threads
+     */
     private Bitmap mDecodedImage;
 
-    /**Getting the current thread running*/
+    /**
+     * Getting the current thread running
+     */
     private Thread mCurrentThread;
 
     /**
@@ -74,11 +94,29 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
         //Log.d("Taggg", "3_1_1");
         mDownloadRunnable = new DownloadDataRunnable[4];
 
-        mRequestSendRunnable = new FrameRequestSendRunnable(this,ModuleManager.getStartCountDown(),ModuleManager.getSendStopCountDown());
-        mDownloadRunnable[0] = new DownloadDataRunnable(this,ModuleManager.BASE_LAYER,ModuleManager.getStartCountDown(),ModuleManager.getDownloadStopCountDown());
-        mDownloadRunnable[1] = new DownloadDataRunnable(this,ModuleManager.ENHANCE_LAYER_1,ModuleManager.getStartCountDown(),ModuleManager.getDownloadStopCountDown() );
-        mDownloadRunnable[2] = new DownloadDataRunnable(this,ModuleManager.ENHANCE_LAYER_2,ModuleManager.getStartCountDown(),ModuleManager.getDownloadStopCountDown() );
-        mDownloadRunnable[3] = new DownloadDataRunnable(this,ModuleManager.ENHANCE_LAYER_3,ModuleManager.getStartCountDown(),ModuleManager.getDownloadStopCountDown() );
+        mRequestSendRunnable = new FrameRequestSendRunnable(this, ModuleManager.getStartCountDown(), ModuleManager.getSendStopCountDown());
+        mDownloadRunnable[0] = new DownloadDataRunnable(this, ModuleManager.BASE_LAYER, ModuleManager.getStartCountDown(), ModuleManager.getDownloadStopCountDown());
+
+        /**These objcets are enabled iff parallel threading is enabled*/
+        mDownloadRunnable[1] = new DownloadDataRunnable(this, ModuleManager.ENHANCE_LAYER_1, ModuleManager.getStartCountDown(), ModuleManager.getDownloadStopCountDown());
+        mDownloadRunnable[2] = new DownloadDataRunnable(this, ModuleManager.ENHANCE_LAYER_2, ModuleManager.getStartCountDown(), ModuleManager.getDownloadStopCountDown());
+        mDownloadRunnable[3] = new DownloadDataRunnable(this, ModuleManager.ENHANCE_LAYER_3, ModuleManager.getStartCountDown(), ModuleManager.getDownloadStopCountDown());
+
+        /**Create seperate object to be decoded using the threadpool*/
+        mDecodeRunnable = new DecodedDataRunnable[ModuleManager.NUM_OF_LAYERS][];
+        int tempNumTiles;
+        for(int layer =0;layer<ModuleManager.NUM_OF_LAYERS;layer++){
+            if(layer == 0){
+                tempNumTiles = ModuleManager.NUM_OF_TILE_BASE_LAYER;
+            }
+            else{
+                tempNumTiles = ModuleManager.NUM_OF_TILE_ENHANC_LAYER;
+            }
+            for(int tile =0;tile<tempNumTiles;tile++){
+                mDecodeRunnable[layer][tile] = new DecodedDataRunnable(this,layer,tile,ModuleManager.getStartCountDown(),ModuleManager.getDecodeStopCountDown());
+            }
+        }
+
         /*mDecodeRunnable = new PhotoDecodeRunnable(this);*/
         sModuleManager = ModuleManager.getInstance();
         //Log.d("Taggg", "3_1_2");
@@ -89,9 +127,10 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
      * This function set the required variables need for the task
      *
      * @param moduleManager A Thread pool object
-     * @param bufferManager A object for bufferManagement*/
+     * @param bufferManager A object for bufferManagement
+     */
 
-    void initializeDownloadTask(ModuleManager moduleManager, BufferManager bufferManager){
+    void initializeDownloadTask(ModuleManager moduleManager, BufferManager bufferManager) {
         Log.d("Taggg", "4");
         sModuleManager = moduleManager;
 
@@ -113,7 +152,7 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
     void recycle() {
 
         // Deletes the weak reference to the imageView
-        if ( null != mBufferManWeakRef ) {
+        if (null != mBufferManWeakRef) {
             mBufferManWeakRef.clear();
             mBufferManWeakRef = null;
         }
@@ -130,7 +169,7 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
      * changed by processes outside of this app.
      */
     public Thread getCurrentThread() {
-        synchronized(sModuleManager) {
+        synchronized (sModuleManager) {
             return mCurrentThread;
         }
     }
@@ -140,45 +179,53 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
      * notes for getCurrentThread()
      */
     public void setCurrentThread(Thread thread) {
-        synchronized(sModuleManager) {
+        synchronized (sModuleManager) {
             mCurrentThread = thread;
         }
     }
 
     /**
-     * Returns the instance that send the request to the server*/
+     * Returns the instance that send the request to the server
+     */
     Runnable getSendRequestRunnable() {
         //Log.d("Taggg", "5");
         return mRequestSendRunnable;
     }
 
-    Runnable getDownloadDataRunnable(int threadNum){
+    Runnable getDownloadDataRunnable(int threadNum) {
         return mDownloadRunnable[threadNum];
     }
 
     /**
-     * This function return the object of bufferManager reference by the weakReference m*/
+     * This function return the object of bufferManager reference by the weakReference m
+     */
     public BufferManager getBufferManager() {
-        if ( null != mBufferManWeakRef ) {
+        if (null != mBufferManWeakRef) {
             return mBufferManWeakRef.get();
         }
         return null;
     }
 
-    /**Function to send the thread state data every time to the module manager*/
+    /**
+     * Function to send the thread state data every time to the module manager
+     */
     void handleState(int state) {
         sModuleManager.handleState(this, state);
     }
 
 
-    /**Implementation of methods in the TaskRunnableSendMethods in
-     * FrameRequestSendRunnable class=============================*/
+    /**
+     * Implementation of methods in the TaskRunnableSendMethods in
+     * FrameRequestSendRunnable class=============================
+     */
     @Override
     public void setSendThread(Thread currentThread) {
         setCurrentThread(currentThread);
     }
 
-    /**Thia funcition works of interrupting the threads*/
+    /**
+     * Thia funcition works of interrupting the threads
+     */
     @Override
     public void setSocketBuffer(Socket[] buffer) {
         //Log.d("Taggg", "11" );
@@ -195,7 +242,7 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
 
         int outState;
 
-        switch(state) {
+        switch (state) {
             case FrameRequestSendRunnable.SOCKET_STATE_STARTED:
                 outState = ModuleManager.REQUEST_SEND_STARTED;
                 break;
@@ -204,7 +251,7 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
                 break;
 
             default:
-                outState = ModuleManager.REQUEST_SEND_FAILED ;
+                outState = ModuleManager.REQUEST_SEND_FAILED;
                 break;
         }
         // Passes the state to the ThreadPool object.
@@ -216,7 +263,7 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
         return networkComponentData;
     }
 
-   @Override
+    @Override
     public byte[] getChunkByteBuffer() {
         return chunkRelatedData;
     }
@@ -225,41 +272,88 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
      * FrameRequestSendRunnable class==================================*/
 
 
-    /**Implementation of methods in the TaskRunnableDownloadMethods in
-     * DataDownloadRunnable class=============================*/
+    /**
+     * Implementation of methods in the TaskRunnableDownloadMethods in
+     * DataDownloadRunnable class=============================
+     */
+
     @Override
-    public byte[] getDataBuffer(int threadNum) {
-        return mImageBuffers[threadNum];
+    public void setSurfaceBuffer(int threadNum) {
+
+    }
+    @Override
+    public void setChunkNum(int chunkNum){
+        this.chunkNum = chunkNum;
+    }
+
+    @Override
+    public int getLayerLength(int layerNum) {
+        int numOfTile;
+        int totLength = 0;
+        /**if it is the base layer*/
+        if (layerNum == ModuleManager.BASE_LAYER) {
+            numOfTile = ModuleManager.NUM_OF_TILE_BASE_LAYER;
+        } else {
+            numOfTile = ModuleManager.NUM_OF_TILE_ENHANC_LAYER;
+        }
+        /**if it is the enhancement layer*/
+        for (int i = 0; i < numOfTile; i++) {
+            totLength += tilelengths[layerNum][i];
+        }
+
+        return totLength;
     }
 
     @Override
     public Socket getSocket(int threadNum) {
-        return networkSockets[threadNum+1];
+        return networkSockets[threadNum + 1];
     }
 
     @Override
     public void setByteBuffer(byte[] downloadedBuffer, int threadNum) {
         mImageBuffers[threadNum] = downloadedBuffer;
+
+        for (int i = 0; i < 100; i++) {
+            Log.d("Taggg", String.valueOf(mImageBuffers[0][i]));
+        }
+
     }
 
 
-    public int[] getTileLengthBuffer(int threadNum){
+    public int[] getTileLengthBuffer(int threadNum) {
         return tilelengths[threadNum];
     }
 
+
+
     /**
-     * Set the buffer containing the tile's lengths */
-    public void setTileLengthsBuffer(int[] tileLengthsBuffer,int threaNum){
-        tilelengths[threaNum] = tileLengthsBuffer;
+     * Set the buffer containing the tile's lengths
+     */
+    public void setTileLengthsBuffer(int[] tileLengthsBuffer, int threaNum) {
+        if (ModuleManager.ENA_PARALLEL_STREAM) {
+            tilelengths[threaNum] = tileLengthsBuffer;
+        } else {
+            for (int i = 0; i < ModuleManager.NUM_OF_LAYERS; i++) {
+                if (i == 0) {
+                    System.arraycopy(tileLengthsBuffer, 0, tilelengths[i], 0, ModuleManager.NUM_OF_TILE_BASE_LAYER);
+                } else {
+                    System.arraycopy(tileLengthsBuffer,
+                            ModuleManager.NUM_OF_TILE_BASE_LAYER + i - 1,
+                            tilelengths[i],
+                            0,
+                            ModuleManager.NUM_OF_TILE_ENHANC_LAYER);
+                }
+            }
+        }
     }
 
     /***/
     @Override
-    public void handleSendState(int state,int threadNum) {
+    public void handleSendState(int state, int threadNum) {
 
         int outState;
 
-        switch(state) {
+        switch (state) {
             case DownloadDataRunnable.DOWNLOAD_STATE_STARTED:
                 outState = ModuleManager.DOWNLOAD_DATA_STARTED;
                 break;
@@ -268,7 +362,7 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
                 Log.d("Tagg", "Download Completed");
                 break;
             default:
-                outState = ModuleManager.REQUEST_SEND_FAILED ;
+                outState = ModuleManager.REQUEST_SEND_FAILED;
                 Log.d("Tagg", "Download Failed" + " " + String.valueOf(threadNum));
                 break;
         }
@@ -278,4 +372,29 @@ public class ModuleTask implements TaskRunnableSendMethods,TaskRunnableDownloadM
 
     /**End of Implementation of methods in the TaskRunnableDownloadMethods in
      * DataDownloadRunnable class=============================*/
+
+
+    /**
+     * Implementation of methods in the TaskRunnableDecodeMethods in DataDownloadRunnable class
+     * ======================================================================================
+     */
+    @Override
+    public byte[] getDataBuffer(int threadNum) {
+        return mImageBuffers[threadNum];
+    }
+
+    @Override
+    public int getChunkQuality() {
+        return Integer.parseInt(networkComponentData[8]);
+    }
+
+    @Override
+    public long getChunk() {
+      return chunkNum*1000000;
+    }
+
+
+    /**End of Implementation of methods in the TaskRunnableDecodeMethods in DataDownloadRunnable class
+     * =============================================================================================*/
+
 }

@@ -16,7 +16,11 @@ import java.util.concurrent.TimeUnit;
 
 public class ModuleManager {
 
-    /**Status Indicators*/
+    static final boolean VERBOSE = true;
+
+    /**
+     * Status Indicators
+     */
     /*Indicators for Request send state*/
     static final int REQUEST_SEND_STARTED = 0;
     static final int REQUEST_SEND_COMPLETED = 1;
@@ -27,19 +31,30 @@ public class ModuleManager {
     static final int DOWNLOAD_DATA_COMPLETED = 3;
     static final int DOWNLOAD_DATA_FAILED = -1;
 
-    /**Layers requesting*/
-    static final int BASE_LAYER= 0;
-    static final int ENHANCE_LAYER_1= 1;
+    /**
+     * Layers requesting
+     */
+    static final int BASE_LAYER = 0;
+    static final int ENHANCE_LAYER_1 = 1;
     static final int ENHANCE_LAYER_2 = 2;
     static final int ENHANCE_LAYER_3 = 3;
 
-    /**Enable parallel threading for communication*/
+    /**
+     * Tile desctiption
+     */
+    static final int NUM_OF_TILE_BASE_LAYER = 20;
+    static final int NUM_OF_TILE_ENHANC_LAYER = 4;
+
+    /**
+     * Enable parallel threading for communication
+     */
     static final boolean ENA_PARALLEL_STREAM = false;
 
     static final int DECODE_STARTED = 3;
     static final int TASK_COMPLETE = 4;
 
     static final int NUM_OF_THREADS = 4;
+    static final int NUM_OF_LAYERS = 4;
     static final int NUM_OF_SEND_THREADS = 1;
 
     //Sets the idle time that a thread will wait for a task before terminating
@@ -81,7 +96,7 @@ public class ModuleManager {
     private final ThreadPoolExecutor mDownloadThreadPool;
 
     // A managed pool of background decoder threads
-    private final ThreadPoolExecutor mDecodeThreadPool;
+    private final ThreadPoolExecutor[] mDecodeThreadPool;
 
     // An object that manages Messages in a Thread
     private Handler mHandler;
@@ -89,9 +104,10 @@ public class ModuleManager {
     // A single instance of PhotoManager, used to implement the singleton pattern
     private static ModuleManager sInstance = null;
 
-    private static  CountDownLatch startSignal;
-    private static  CountDownLatch doneSendRequestSignal;
-    private static  CountDownLatch doneDownloadSignal;
+    private static CountDownLatch startSignal;
+    private static CountDownLatch doneSendRequestSignal;
+    private static CountDownLatch doneDownloadSignal;
+    private static CountDownLatch doneDecodeSignal;
 
     // A static block that sets class fields
     static {
@@ -101,20 +117,20 @@ public class ModuleManager {
 
         // Creates a single static instance of PhotoManager
         sInstance = new ModuleManager();
-        startSignal= new CountDownLatch(1);
+        startSignal = new CountDownLatch(1);
         doneDownloadSignal = new CountDownLatch(NUM_OF_THREADS);
         doneSendRequestSignal = new CountDownLatch(NUM_OF_SEND_THREADS);
     }
 
     //Constructing the workqueues and thread pools for the execution
-    private ModuleManager(){
+    private ModuleManager() {
 
         /*Creating work queue for the pool of thread objects for requestingFrame, using a linked list
          * that blocks when the queue is empty*/
         mDownloadWorkQueue = new LinkedBlockingQueue<Runnable>();
 
         /*Creating work queue for the pool of thread objects for downloading frames, using a linked list
-        * that blocks when the queue is empty*/
+         * that blocks when the queue is empty*/
         mSendWorkQueue = new LinkedBlockingQueue<Runnable>();
 
         /*Creating work queue for the pool of thread objects for decoding frames, using a linked list
@@ -129,6 +145,7 @@ public class ModuleManager {
          */
         mPhotoTaskWorkQueue = new LinkedBlockingQueue<ModuleTask>();
 
+
         /*Creating a new pool for thread Objects for the request queue*/
         mSendThreadPool = new ThreadPoolExecutor(
                 CORE_POOL_SIZE,
@@ -136,7 +153,6 @@ public class ModuleManager {
                 KEEP_ALIVE_TIME_FOR_SEND_REQUEST,
                 KEEP_ALIVE_TIME_UNIT,
                 mSendWorkQueue);
-
 
         /*Creating a new pool for thread Objects for the Download queue*/
         mDownloadThreadPool = new ThreadPoolExecutor(
@@ -147,26 +163,30 @@ public class ModuleManager {
                 mDownloadWorkQueue);
 
         /*Creating a new pool for thread Objects for the Decoding queue*/
-        mDecodeThreadPool = new ThreadPoolExecutor(
-                CORE_POOL_SIZE,
-                MAXIMUM_POOL_SIZE,
-                KEEP_ALIVE_TIME_FOR_DECODE,
-                KEEP_ALIVE_TIME_UNIT,
-                mSendWorkQueue);
+        mDecodeThreadPool = new ThreadPoolExecutor[ModuleManager.NUM_OF_LAYERS];
+
+        for (int i = 0; i < ModuleManager.NUM_OF_LAYERS; i++) {
+            mDecodeThreadPool[i] = new ThreadPoolExecutor(
+                    CORE_POOL_SIZE,
+                    MAXIMUM_POOL_SIZE,
+                    KEEP_ALIVE_TIME_FOR_DECODE,
+                    KEEP_ALIVE_TIME_UNIT,
+                    mSendWorkQueue);
+        }
 
         /*handler object to sends messages to the UI object */
-        mHandler = new Handler(Looper.getMainLooper()){
+        mHandler = new Handler(Looper.getMainLooper()) {
             @Override
             public void handleMessage(@NonNull Message msg) {
                 super.handleMessage(msg);
 
-                ModuleTask  moduleTask = (ModuleTask) msg.obj;
+                ModuleTask moduleTask = (ModuleTask) msg.obj;
 
                 /*This is a weak reference to the BufferManager object given by the moduletask*/
                 BufferManager bufferManager = moduleTask.getBufferManager();
 
-                if(bufferManager!=null){
-                    switch (msg.what){
+                if (bufferManager != null) {
+                    switch (msg.what) {
                         case REQUEST_SEND_COMPLETED:
                             break;
                         case DOWNLOAD_DATA_COMPLETED:
@@ -179,8 +199,11 @@ public class ModuleManager {
 
     }
 
-    /**Return the modulemanager object*/
+    /**
+     * Return the modulemanager object
+     */
     public static ModuleManager getInstance() {
+
         return sInstance;
     }
 
@@ -192,26 +215,33 @@ public class ModuleManager {
         return doneDownloadSignal;
     }
 
+    public static CountDownLatch getDecodeStopCountDown() {
+        return doneDecodeSignal;
+    }
+
     public static CountDownLatch getSendStopCountDown() {
         return doneSendRequestSignal;
     }
 
 
-
-    /**Call relevant threads based on the status received by the */
+    /**
+     * Call relevant threads based on the status received by the
+     */
     public void handleState(ModuleTask moduleTask, int state) {
         //Log.d("Taggg", "12");
 
-        switch (state){
+        switch (state) {
             /**If the request send is successful, then receive the data from the server
              * In this case 4 parallel threads should be run and those parallel data is
              * sent to parallel decoders*/
 
             case REQUEST_SEND_COMPLETED:
 
-                if(ENA_PARALLEL_STREAM) {
+                /**If parallel thread is enabled, then stream the data in 4 threads
+                 * Still need to have synchronization of the threads. Not implemented yet propoerly*/
+                if (ENA_PARALLEL_STREAM) {
 
-                    //Log.d("Taggg", startSignal.toString()+"  13");
+
                     //Log.d("Taggg", "13");
                     sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(BASE_LAYER));
                     //Log.d("Taggg", "14");
@@ -229,12 +259,18 @@ public class ModuleManager {
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
-                }else if(!ENA_PARALLEL_STREAM){
+                    /**If the parallel streaming is not enabled, then stream the data in one stream*/
+                } else if (!ENA_PARALLEL_STREAM) {
                     sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(BASE_LAYER));
                 }
                 //Log.d("Debug","Done Awaiting");
                 break;
             case DOWNLOAD_DATA_COMPLETED:
+
+                for(int i =0;i<NUM_OF_LAYERS;i++){
+                  
+                }
+
                 Message completeMessage = mHandler.obtainMessage(state, moduleTask);
                 completeMessage.sendToTarget();
                 break;
@@ -247,7 +283,7 @@ public class ModuleManager {
      * Starts an image download and decode
      *
      * @param bufferManager The ImageView that will get the resulting Bitmap
-     * @param cacheFlag Determines if caching should be used
+     * @param cacheFlag     Determines if caching should be used
      * @return The task instance that will handle the work
      */
     static public ModuleTask sendRequest(
@@ -291,22 +327,22 @@ public class ModuleManager {
         // If the byte buffer was empty, the image wasn't cached
         //if (null == downloadTask.getByteBuffer()) {
 
-            /*
-             * "Executes" the tasks' download Runnable in order to download the image. If no
-             * Threads are available in the thread pool, the Runnable waits in the queue.
-             */
+        /*
+         * "Executes" the tasks' download Runnable in order to download the image. If no
+         * Threads are available in the thread pool, the Runnable waits in the queue.
+         */
         //    sInstance.mDownloadThreadPool.execute(downloadTask.getHTTPDownloadRunnable());
 
-            // Sets the display to show that the image is queued for downloading and decoding.
+        // Sets the display to show that the image is queued for downloading and decoding.
         //    imageView.setStatusResource(R.drawable.imagequeued);
 
-            // The image was cached, so no download is required.
+        // The image was cached, so no download is required.
         //} else {
 
-            /*
-             * Signals that the download is "complete", because the byte array already contains the
-             * undecoded image. The decoding starts.
-             */
+        /*
+         * Signals that the download is "complete", because the byte array already contains the
+         * undecoded image. The decoding starts.
+         */
 
         //    sInstance.handleState(downloadTask, DOWNLOAD_COMPLETE);
         //}

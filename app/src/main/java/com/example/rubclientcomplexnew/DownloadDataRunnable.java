@@ -67,6 +67,11 @@ public class DownloadDataRunnable implements Runnable {
          */
         int[] getTileLengthBuffer(int threadNum);
 
+
+        /**
+         * set the chunkNumber*/
+        void setChunkNum(int chunkNum);
+
         /**
          * Set the buffer containing the tile's lengths
          */
@@ -78,7 +83,6 @@ public class DownloadDataRunnable implements Runnable {
     DownloadDataRunnable(TaskRunnableDownloadMethods moduleTask, int threadNum, CountDownLatch startSignal, CountDownLatch doneSignal) {
         this.threadNum = threadNum;
         this.mModuleTask = moduleTask;
-
         this.startSignal = startSignal;
         this.doneSignal = doneSignal;
     }
@@ -190,7 +194,7 @@ public class DownloadDataRunnable implements Runnable {
                     }
                 }
 
-                Log.d("Taggg", "Layer length "+String.valueOf(totBytesRead));
+                //Log.d("Taggg", "Layer length "+String.valueOf(totBytesRead));
                 /**Giving the total length of the byte array*/
                 int endOfByte = layerLength;
                 int tempTotReadByte=0;
@@ -202,18 +206,19 @@ public class DownloadDataRunnable implements Runnable {
                         tempTotReadByte += bytesRead;
                     }
                     totBytesRead+=bytesRead;
-                    Log.d("Taggg", "Temp Byte " + String.valueOf(totBytesRead) +" "+ String.valueOf(tempTotReadByte)+ " "+ String.valueOf(endOfByte - tempTotReadByte)+"\n");
+                    //Log.d("Taggg", "Temp Byte " + String.valueOf(totBytesRead) +" "+ String.valueOf(tempTotReadByte)+ " "+ String.valueOf(endOfByte - tempTotReadByte)+"\n");
                 } while (bytesRead > 0);
 
                 Log.d("Taggg", String.valueOf(this.threadNum) + " " + String.valueOf(totBytesRead));
-                Log.d("Taggg", "25");
+                //Log.d("Taggg", "25");
 
                 /**Closing the socket*/
                 socket.close();
 
-                /**Sets the read buffer to the buffer in the moduletask*/
-
+                /**Sets the read buffer to the buffer in the moduletask and set the tile length variable
+                 * as well*/
                 mModuleTask.setByteBuffer(byteReadData, threadNum);
+                mModuleTask.setTileLengthsBuffer(tileLengths,threadNum);
 
                 /**Make the state change if and only if current working thread is on Baselayer transmission
                  * or prallel streaming is disabled*/

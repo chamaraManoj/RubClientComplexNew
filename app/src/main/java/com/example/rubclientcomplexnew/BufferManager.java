@@ -30,6 +30,8 @@ public class BufferManager {
     private String[] networkRelatedPara;
     private byte[] chunkDataBuffer;
 
+    private int chunk;
+
     ModuleTask mModuleTask;
 
     /**
@@ -54,19 +56,19 @@ public class BufferManager {
      */
     public byte[] getChunkData() {
 
-        int chunk;
+
         chunkDataBuffer = new byte[CHUNK_RELATED_DATA];
 
         /**This is s temporarly created for loop to test the implementing methods*/
 
-        for (chunk = 10; chunk < 11; chunk++) {
+
             byte tile1 = 19;
-            byte tile2 = (byte) (chunk % 15);
+            byte tile2 = 15;
             byte tile3 = 11;
-            byte tile4 = (byte) (chunk % 15);
+            byte tile4 = 15;
             byte quality = QUALITY_SD;
 
-            byte[] tempChunkBytes = ByteBuffer.allocate(4).putInt(chunk).array();
+            byte[] tempChunkBytes = ByteBuffer.allocate(4).putInt(this.chunk).array();
 
             chunkDataBuffer[0] = tempChunkBytes[0];
             chunkDataBuffer[1] = tempChunkBytes[1];
@@ -79,7 +81,7 @@ public class BufferManager {
             chunkDataBuffer[7] = tile4;
             chunkDataBuffer[8] = quality;
 
-        }
+
         return chunkDataBuffer;
     }
 
@@ -88,6 +90,7 @@ public class BufferManager {
         int previouseDownloadCount =0;
         //Log.d("Taggg", "2");
         for (int i = 1; i < 11; i++) {
+            this.chunk = i;
             mModuleTask = ModuleManager.sendRequest(this, true, downLoadCompleteCount);
         }
     }
