@@ -240,8 +240,6 @@ public class ModuleManager {
                 /**If parallel thread is enabled, then stream the data in 4 threads
                  * Still need to have synchronization of the threads. Not implemented yet propoerly*/
                 if (ENA_PARALLEL_STREAM) {
-
-
                     //Log.d("Taggg", "13");
                     sInstance.mDownloadThreadPool.execute(moduleTask.getDownloadDataRunnable(BASE_LAYER));
                     //Log.d("Taggg", "14");

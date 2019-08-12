@@ -36,7 +36,6 @@ public class DecodedDataRunnable implements Runnable {
     final int tileNum;
 
 
-
     /**
      * Variables to set the resolution
      */
@@ -45,12 +44,17 @@ public class DecodedDataRunnable implements Runnable {
     private int mHeight = -1;
 
 
-    public DecodedDataRunnable(TaskRunnableDecoderMethods moduleTask, int numThread,int tile, CountDownLatch startSignal, CountDownLatch doneSignal) {
+    public DecodedDataRunnable(TaskRunnableDecoderMethods moduleTask, int numThread, CountDownLatch startSignal, CountDownLatch doneSignal) {
         this.moduleTask = moduleTask;
         this.layerNum = numThread;
         this.startSignal = startSignal;
         this.doneSignal = doneSignal;
-        this.tileNum = tile;
+
+        /**initializing the num of tiles in the task*/
+        if (this.layerNum == ModuleManager.BASE_LAYER)
+            this.tileNum = ModuleManager.NUM_OF_TILE_BASE_LAYER;
+        else
+            this.tileNum = ModuleManager.NUM_OF_TILE_ENHANC_LAYER;
     }
 
     /**Initialize the chunkQuality qualitites*/
@@ -69,7 +73,7 @@ public class DecodedDataRunnable implements Runnable {
         /**
          * Get the current content of the
          */
-        byte[] getDataBuffer(int layerNum);
+        byte[] getDataBufferForDecode(int layerNum);
 
         /**
          * Get the quality of the chunk
@@ -89,7 +93,7 @@ public class DecodedDataRunnable implements Runnable {
         /**
          * get the layer length
          */
-        int getLayerLength(int layerNum);
+        int[] getLayerLength(int layerNum);
     }
 
 
@@ -123,78 +127,73 @@ public class DecodedDataRunnable implements Runnable {
              return;
              }*/
 
-            MediaCodec mediaCodec = MediaCodec.createDecoderByType("video/hevc");
-            final MediaFormat[] mOutputFormat = new MediaFormat[1];
+            ByteBuffer[] outputBuffers = new ByteBuffer[tileNum];
+            ByteBuffer[] inputBuffers = new ByteBuffer[tileNum];
 
-            mediaCodec.setCallback(new MediaCodec.Callback() {
-                @Override
-                public void onInputBufferAvailable(MediaCodec mediaCodec, int i) {
-                    ByteBuffer inputBuffer = decoder.getInputBuffer(i);
+            byte[] tempBuffer = moduleTask.getDataBufferForDecode(layerNum);
+            int [] tileLength = moduleTask.getLayerLength(layerNum);
 
-                    byte[] tempBuffer = moduleTask.getDataBuffer(layerNum);
 
-                    /**read the buffer related data*/
-                    int size = moduleTask.getLayerLength(layerNum);
-                    long presentationTIme = moduleTask.getChunk();
+            for(int t =0;t<tileNum;t++){
+                int te
+            }
 
-                    /*=========================Debug Point=========================================*/
-                    if (ModuleManager.VERBOSE || DecodedDataRunnable.VERBOSE_DECODE) {
-                        Log.d(TAG, "InputBuffer: returned buffer of size " + size);
-                        Log.d(TAG, "InputBuffer: returned buffer for time " + presentationTIme);
+
+            //MediaCodec mediaCodec = MediaCodec.createByCodecName("video/hevc");
+
+            MediaCodecList mediaCodecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
+            MediaFormat mediaFormat = new MediaFormat();
+            mediaFormat.setFeatureEnabled(MediaFormat.MIMETYPE_VIDEO_HEVC, true);
+            String nameOfDecoder = mediaCodecList.findDecoderForFormat(mediaFormat);
+
+            /**Decode each array seperately*/
+            for (int t = 0; t < tileNum; t++) {
+                MediaCodec mediaCodec = MediaCodec.createByCodecName(nameOfDecoder);
+
+                MediaFormat mOutputFormat = mediaCodec.getOutputFormat();
+
+                mediaCodec.start();
+
+                for (; ; ) {
+                    int inputBufferId = mediaCodec.dequeueInputBuffer(timeoutUs);
+                    if (inputBufferId >= 0) {
+                        ByteBuffer inputBuffer = mediaCodec.getInputBuffer(…);
+                        // fill inputBuffer with valid data
+
+                        mediaCodec.queueInputBuffer(inputBufferId, …);
                     }
+                    int outputBufferId = mediaCodec.dequeueOutputBuffer(…);
+                    if (outputBufferId >= 0) {
+                        outputBuffers[t] = mediaCodec.getOutputBuffer(outputBufferId);
+                        MediaFormat bufferFormat = mediaCodec.getOutputFormat(outputBufferId); // option A
+                        // bufferFormat is identical to outputFormat
+                        // outputBuffer is ready to be processed or rendered.
 
-                    /**If the returned size is not greater than 0*/
-                    if (!(size > 0)) {
-                        Log.e("Taggg", "Returned buffer length is equal to zero");
-                        return;
-                    }
-                    inputBuffer = ByteBuffer.wrap(moduleTask.getDataBuffer(layerNum));
-                    if (size > 0) {
-                        decoder.queueInputBuffer(i,
-                                0,
-                                size,
-                                presentationTIme,
-                                MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+
+                        mediaCodec.releaseOutputBuffer(outputBufferId, …);
+                    } else if (outputBufferId == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        // Subsequent data will conform to new format.
+                        // Can ignore if using getOutputFormat(outputBufferId)
+                        mOutputFormat = mediaCodec.getOutputFormat(); // option B
                     }
                 }
+                mediaCodec.stop();
+                mediaCodec.release();
+            }
 
-                @Override
-                public void onOutputBufferAvailable(MediaCodec mediaCodec, int i, MediaCodec.BufferInfo bufferInfo) {
 
-                    if (ModuleManager.VERBOSE || DecodedDataRunnable.VERBOSE_DECODE) {
-                        Log.d(TAG, "video decoder: returned output buffer: " + i);
-                        Log.d(TAG, "video decoder: returned buffer of size " + bufferInfo.size);
-                    }
 
-                    if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
-                        if (ModuleManager.VERBOSE || DecodedDataRunnable.VERBOSE_DECODE)
-                            Log.d(TAG, "video decoder: codec config buffer");
-                        decoder.releaseOutputBuffer(i, false);
-                        return;
-                    }
-                    ByteBuffer outputBuffer = mediaCodec.getOutputBuffer(i);
-                    MediaFormat bufferFormat = mediaCodec.getOutputFormat(i); // option A
 
-                    decoder.releaseOutputBuffer(i,false);
-                }
 
-                @Override
-                public void onError(MediaCodec mediaCodec, MediaCodec.CodecException e) {
 
-                }
 
-                @Override
-                public void onOutputFormatChanged(MediaCodec mediaCodec, MediaFormat mediaFormat) {
-                    mOutputFormat[0] = mediaFormat; // option B
-                }
-            });
 
-            mediaCodec.configure(null,null,null,0);
+            /*mediaCodec.configure(null,null,null,0);
             mOutputFormat[0] = mediaCodec.getOutputFormat(); // option B
             mediaCodec.start();
             // wait for processing to complete
             mediaCodec.stop();
-            mediaCodec.release();
+            mediaCodec.release();*/
 
 
         } catch (Exception e) {
@@ -255,3 +254,110 @@ public class DecodedDataRunnable implements Runnable {
 
 
 }
+
+/**
+ * mediaCodec.setCallback(new MediaCodec.Callback() {
+ *
+ * @Override public void onInputBufferAvailable(MediaCodec mediaCodec, int i) {
+ * ByteBuffer inputBuffer = decoder.getInputBuffer(i);
+ * <p>
+ * byte[] tempBuffer = moduleTask.getDataBuffer(layerNum);
+ * <p>
+ * /**read the buffer related data        int size = moduleTask.getLayerLength(layerNum);
+ * long presentationTIme = moduleTask.getChunk();
+ * <p>
+ * /*=========================Debug Point=========================================        if (ModuleManager.VERBOSE || DecodedDataRunnable.VERBOSE_DECODE) {
+ * Log.d(TAG, "InputBuffer: returned buffer of size " + size);
+ * Log.d(TAG, "InputBuffer: returned buffer for time " + presentationTIme);
+ * }
+ * <p>
+ * /**If the returned size is not greater than 0        if (!(size > 0)) {
+ * Log.e("Taggg", "Returned buffer length is equal to zero");
+ * return;
+ * }
+ * inputBuffer = ByteBuffer.wrap(moduleTask.getDataBuffer(layerNum));
+ * if (size > 0) {
+ * decoder.queueInputBuffer(i,
+ * 0,
+ * size,
+ * presentationTIme,
+ * MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+ * }
+ * }
+ * @Override public void onOutputBufferAvailable(MediaCodec mediaCodec, int i, MediaCodec.BufferInfo bufferInfo) {
+ * <p>
+ * if (ModuleManager.VERBOSE || DecodedDataRunnable.VERBOSE_DECODE) {
+ * Log.d(TAG, "video decoder: returned output buffer: " + i);
+ * Log.d(TAG, "video decoder: returned buffer of size " + bufferInfo.size);
+ * }
+ * <p>
+ * if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+ * if (ModuleManager.VERBOSE || DecodedDataRunnable.VERBOSE_DECODE)
+ * Log.d(TAG, "video decoder: codec config buffer");
+ * decoder.releaseOutputBuffer(i, false);
+ * return;
+ * }
+ * ByteBuffer outputBuffer = mediaCodec.getOutputBuffer(i);
+ * MediaFormat bufferFormat = mediaCodec.getOutputFormat(i); // option A
+ * <p>
+ * decoder.releaseOutputBuffer(i,false);
+ * }
+ * @Override public void onError(MediaCodec mediaCodec, MediaCodec.CodecException e) {
+ * <p>
+ * }
+ * @Override public void onOutputFormatChanged(MediaCodec mediaCodec, MediaFormat mediaFormat) {
+ * mOutputFormat[0] = mediaFormat; // option B
+ * }
+ * });
+ */
+/**        int size = moduleTask.getLayerLength(layerNum);
+ long presentationTIme = moduleTask.getChunk();
+
+ /*=========================Debug Point=========================================*/
+/**        if (ModuleManager.VERBOSE || DecodedDataRunnable.VERBOSE_DECODE) {
+ Log.d(TAG, "InputBuffer: returned buffer of size " + size);
+ Log.d(TAG, "InputBuffer: returned buffer for time " + presentationTIme);
+ }
+
+ /**If the returned size is not greater than 0*/
+/**        if (!(size > 0)) {
+ Log.e("Taggg", "Returned buffer length is equal to zero");
+ return;
+ }
+ inputBuffer = ByteBuffer.wrap(moduleTask.getDataBuffer(layerNum));
+ if (size > 0) {
+ decoder.queueInputBuffer(i,
+ 0,
+ size,
+ presentationTIme,
+ MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+ }
+ }
+
+ @Override public void onOutputBufferAvailable(MediaCodec mediaCodec, int i, MediaCodec.BufferInfo bufferInfo) {
+
+ if (ModuleManager.VERBOSE || DecodedDataRunnable.VERBOSE_DECODE) {
+ Log.d(TAG, "video decoder: returned output buffer: " + i);
+ Log.d(TAG, "video decoder: returned buffer of size " + bufferInfo.size);
+ }
+
+ if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+ if (ModuleManager.VERBOSE || DecodedDataRunnable.VERBOSE_DECODE)
+ Log.d(TAG, "video decoder: codec config buffer");
+ decoder.releaseOutputBuffer(i, false);
+ return;
+ }
+ ByteBuffer outputBuffer = mediaCodec.getOutputBuffer(i);
+ MediaFormat bufferFormat = mediaCodec.getOutputFormat(i); // option A
+
+ decoder.releaseOutputBuffer(i,false);
+ }
+
+ @Override public void onError(MediaCodec mediaCodec, MediaCodec.CodecException e) {
+
+ }
+
+ @Override public void onOutputFormatChanged(MediaCodec mediaCodec, MediaFormat mediaFormat) {
+ mOutputFormat[0] = mediaFormat; // option B
+ }
+ });*/

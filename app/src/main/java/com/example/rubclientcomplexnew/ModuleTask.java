@@ -43,7 +43,8 @@ public class ModuleTask implements TaskRunnableSendMethods, TaskRunnableDownload
     Thread mThreadThis;
 
     /**
-     * set the chunk Number*/
+     * set the chunk Number
+     */
     private int chunkNum;
 
     /**
@@ -51,9 +52,8 @@ public class ModuleTask implements TaskRunnableSendMethods, TaskRunnableDownload
      * decoding of the image.
      */
     private Runnable[] mDownloadRunnable;
-    private Runnable[][] mDecodeRunnable;
+    private Runnable[] mDecodeRunnable;
     private Runnable mRequestSendRunnable;
-
 
 
     /**
@@ -103,23 +103,14 @@ public class ModuleTask implements TaskRunnableSendMethods, TaskRunnableDownload
         mDownloadRunnable[3] = new DownloadDataRunnable(this, ModuleManager.ENHANCE_LAYER_3, ModuleManager.getStartCountDown(), ModuleManager.getDownloadStopCountDown());
 
         /**Create seperate object to be decoded using the threadpool*/
-        mDecodeRunnable = new DecodedDataRunnable[ModuleManager.NUM_OF_LAYERS][];
+        mDecodeRunnable = new DecodedDataRunnable[ModuleManager.NUM_OF_LAYERS];
         int tempNumTiles;
-        for(int layer =0;layer<ModuleManager.NUM_OF_LAYERS;layer++){
-            if(layer == 0){
-                tempNumTiles = ModuleManager.NUM_OF_TILE_BASE_LAYER;
-            }
-            else{
-                tempNumTiles = ModuleManager.NUM_OF_TILE_ENHANC_LAYER;
-            }
-            for(int tile =0;tile<tempNumTiles;tile++){
-                mDecodeRunnable[layer][tile] = new DecodedDataRunnable(this,layer,tile,ModuleManager.getStartCountDown(),ModuleManager.getDecodeStopCountDown());
-            }
+        for (int layer = 0; layer < ModuleManager.NUM_OF_LAYERS; layer++) {
+            mDecodeRunnable[layer] = new DecodedDataRunnable(this, layer, ModuleManager.getStartCountDown(), ModuleManager.getDecodeStopCountDown());
         }
 
-        /*mDecodeRunnable = new PhotoDecodeRunnable(this);*/
         sModuleManager = ModuleManager.getInstance();
-        //Log.d("Taggg", "3_1_2");
+
     }
 
     /**
@@ -281,27 +272,10 @@ public class ModuleTask implements TaskRunnableSendMethods, TaskRunnableDownload
     public void setSurfaceBuffer(int threadNum) {
 
     }
+
     @Override
-    public void setChunkNum(int chunkNum){
+    public void setChunkNum(int chunkNum) {
         this.chunkNum = chunkNum;
-    }
-
-    @Override
-    public int getLayerLength(int layerNum) {
-        int numOfTile;
-        int totLength = 0;
-        /**if it is the base layer*/
-        if (layerNum == ModuleManager.BASE_LAYER) {
-            numOfTile = ModuleManager.NUM_OF_TILE_BASE_LAYER;
-        } else {
-            numOfTile = ModuleManager.NUM_OF_TILE_ENHANC_LAYER;
-        }
-        /**if it is the enhancement layer*/
-        for (int i = 0; i < numOfTile; i++) {
-            totLength += tilelengths[layerNum][i];
-        }
-
-        return totLength;
     }
 
     @Override
@@ -311,19 +285,49 @@ public class ModuleTask implements TaskRunnableSendMethods, TaskRunnableDownload
 
     @Override
     public void setByteBuffer(byte[] downloadedBuffer, int threadNum) {
-        mImageBuffers[threadNum] = downloadedBuffer;
+        /**If the Parallel streaming is enabled. In this case, half the mImagebuffers will be filled
+         * If Parallel streaming is enabaled, keep in mind to reduce the buffer length to the exact value '
+         * the length*/
+        if(ModuleManager.ENA_PARALLEL_STREAM)
+            mImageBuffers[threadNum] = downloadedBuffer;
+        /**If the parallel streaming is not enabled*/
+        else{
+            if(tilelengths!=null){
+                int totLengthPrev = 0;
+                for (int i = 0; i < ModuleManager.NUM_OF_LAYERS; i++) {
 
-        for (int i = 0; i < 100; i++) {
-            Log.d("Taggg", String.valueOf(mImageBuffers[0][i]));
+                    int totLength=0;
+                    if (i == 0) {
+                        /**fill the baselayer*/
+                        for(int j =0; j<ModuleManager.NUM_OF_TILE_BASE_LAYER;j++){
+                            totLength+=tilelengths[i][j];
+                        }
+                        System.arraycopy(downloadedBuffer, 0, mImageBuffers[i], 0, totLength);
+                        totLengthPrev = totLength;
+
+                    } else {
+                        /**Fill the enahancement layers*/
+
+                        /**Getting the total length of the layer*/
+                        for(int j =0; j<ModuleManager.NUM_OF_TILE_ENHANC_LAYER;j++){
+                            totLength+=tilelengths[i][j];
+                        }
+                        System.arraycopy(downloadedBuffer,
+                                totLengthPrev,
+                                mImageBuffers[i],
+                                0,
+                                totLength);
+                        totLengthPrev = totLength;
+                    }
+                }
+            }
         }
 
+
     }
-
-
-    public int[] getTileLengthBuffer(int threadNum) {
+   public int[] getTileLengthBuffer(int threadNum) {
         return tilelengths[threadNum];
     }
-
 
 
     /**
@@ -338,7 +342,7 @@ public class ModuleTask implements TaskRunnableSendMethods, TaskRunnableDownload
                     System.arraycopy(tileLengthsBuffer, 0, tilelengths[i], 0, ModuleManager.NUM_OF_TILE_BASE_LAYER);
                 } else {
                     System.arraycopy(tileLengthsBuffer,
-                            ModuleManager.NUM_OF_TILE_BASE_LAYER + i - 1,
+                            ModuleManager.NUM_OF_TILE_BASE_LAYER + (i - 1)*ModuleManager.NUM_OF_TILE_ENHANC_LAYER,
                             tilelengths[i],
                             0,
                             ModuleManager.NUM_OF_TILE_ENHANC_LAYER);
@@ -390,9 +394,34 @@ public class ModuleTask implements TaskRunnableSendMethods, TaskRunnableDownload
 
     @Override
     public long getChunk() {
-      return chunkNum*1000000;
+        return chunkNum * 1000000;
     }
 
+
+    @Override
+    public int[] getLayerLength(int layerNum) {
+        int numOfTile;
+        int[] totLength;
+        /**if it is the base layer*/
+        if (layerNum == ModuleManager.BASE_LAYER) {
+            numOfTile = ModuleManager.NUM_OF_TILE_BASE_LAYER;
+        } else {
+            numOfTile = ModuleManager.NUM_OF_TILE_ENHANC_LAYER;
+        }
+        totLength = new int[numOfTile];
+
+        /**If the parallel streaming is enabled*/
+
+        for (int i = 0; i < numOfTile; i++) {
+            totLength[i] = tilelengths[layerNum][i];
+        }
+       return totLength;
+    }
+
+
+    public byte[] getDataBufferForDecode(int layerNum){
+      return mImageBuffers[layerNum];
+    }
 
     /**End of Implementation of methods in the TaskRunnableDecodeMethods in DataDownloadRunnable class
      * =============================================================================================*/

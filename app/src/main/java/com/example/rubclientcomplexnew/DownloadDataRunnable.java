@@ -121,8 +121,10 @@ public class DownloadDataRunnable implements Runnable {
         /**Moves the current Thread into the background*/
         android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
 
-        byte[] byteReadData = mModuleTask.getDataBuffer(this.threadNum);
-        int[] tileLengths = mModuleTask.getTileLengthBuffer(this.threadNum);
+        //byte[] byteReadData = mModuleTask.getDataBuffer(this.threadNum);
+        //int[] tileLengths = mModuleTask.getTileLengthBuffer(this.threadNum);
+        byte[] byteReadData;
+        int[] tileLengths;
         //Log.d("Taggg", String.valueOf(this.threadNum) + " 21");
 
         Socket socket = mModuleTask.getSocket(this.threadNum);
@@ -217,8 +219,9 @@ public class DownloadDataRunnable implements Runnable {
 
                 /**Sets the read buffer to the buffer in the moduletask and set the tile length variable
                  * as well*/
-                mModuleTask.setByteBuffer(byteReadData, threadNum);
                 mModuleTask.setTileLengthsBuffer(tileLengths,threadNum);
+                mModuleTask.setByteBuffer(byteReadData, threadNum);
+
 
                 /**Make the state change if and only if current working thread is on Baselayer transmission
                  * or prallel streaming is disabled*/
